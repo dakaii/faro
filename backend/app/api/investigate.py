@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Request, HTTPException
 
 from app.models.schemas import InvestigateResponse, WalletRequest
 from app.services.etherscan import EtherscanFetcher
@@ -8,7 +8,7 @@ router = APIRouter()
 
 
 @router.post("/investigate", response_model=InvestigateResponse)
-async def investigate_wallet(req: WalletRequest) -> InvestigateResponse:
+async def investigate_wallet(req: WalletRequest, request: Request) -> InvestigateResponse:
     """
     Investigate a wallet: fetch on-chain data, (optional) graph + RAG context,
     then synthesize risk score and evidence. LLM integration in Sprint 2.
@@ -19,7 +19,7 @@ async def investigate_wallet(req: WalletRequest) -> InvestigateResponse:
 
     fetcher = EtherscanFetcher()
     wallet_story = fetcher.get_wallet_summary(address, chain_id=req.chain_id)
-    graph_summary = get_graph_context(address)
+    graph_summary = get_graph_context(address, request.app)
 
     # Placeholder: no LLM yet – return a simple heuristic so the pipeline is testable
     risk_score = 0

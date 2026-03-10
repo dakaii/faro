@@ -15,14 +15,15 @@ AI-driven wallet risk investigator: combines **live on-chain data** (Etherscan),
 
 ## Quick start
 
+From the repo root you can use **Make** for common commands: `make env-setup` (copy `.env`), `make up` (Docker), `make dev-backend`, `make dev-frontend`, `make down`, `make logs`.
+
 ### Option A: Docker (backend + Neo4j)
 
-From the repo root:
-
 ```bash
-cp backend/.env.example backend/.env   # set ETHERSCAN_API_KEY (and optional NEO4J_PASSWORD)
-docker compose up -d
+make env-setup   # or: cp backend/.env.example backend/.env
+make up          # or: docker compose up -d
 ```
+Set `ETHERSCAN_API_KEY` (and optional `NEO4J_PASSWORD`) in `backend/.env`.
 
 - **Backend:** http://localhost:8000  
 - **Neo4j Browser:** http://localhost:7474 (default user `neo4j`, password from `NEO4J_PASSWORD` or `neo4j`)

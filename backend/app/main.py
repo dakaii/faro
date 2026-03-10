@@ -9,11 +9,23 @@ from app.core.config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: init Neo4j driver etc. later
+    # Startup: connect to Neo4j when configured so routes can use app.state.neo4j_driver
+    app.state.neo4j_driver = None
+    if settings.neo4j_password:
+        try:
+            from neo4j import GraphDatabase
+
+            app.state.neo4j_driver = GraphDatabase.driver(
+                settings.neo4j_uri,
+                auth=(settings.neo4j_user, settings.neo4j_password),
+            )
+        except Exception:
+            pass
     yield
     # Shutdown
-    if hasattr(app.state, "neo4j_driver") and app.state.neo4j_driver:
+    if getattr(app.state, "neo4j_driver", None):
         app.state.neo4j_driver.close()
+        app.state.neo4j_driver = None
 
 
 app = FastAPI(

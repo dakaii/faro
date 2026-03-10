@@ -2,13 +2,21 @@
 Neo4j client for GraphRAG: graph traversal (multi-hop from wallet to blacklisted/mixer)
 and vector index for threat reports. Placeholder until Sprint 2/4.
 """
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.core.config import settings
 
+if TYPE_CHECKING:
+    from fastapi import FastAPI
 
-def get_driver():
-    """Lazy init Neo4j driver. Returns None if not configured."""
+
+def get_driver(app: FastAPI | None = None):
+    """
+    Return Neo4j driver: use app.state.neo4j_driver when app is provided (set at startup),
+    otherwise lazy-init if configured. Returns None if not configured.
+    """
+    if app and getattr(app.state, "neo4j_driver", None):
+        return app.state.neo4j_driver
     if not settings.neo4j_password:
         return None
     try:
@@ -22,12 +30,12 @@ def get_driver():
         return None
 
 
-def get_graph_context(address: str, max_hops: int = 3) -> str:
+def get_graph_context(address: str, app: FastAPI | None = None, max_hops: int = 3) -> str:
     """
     (Sprint 4) Run Cypher to find paths from this wallet to Blacklisted/Mixer nodes.
     Returns a string summary for the LLM.
     """
-    driver = get_driver()
+    driver = get_driver(app)
     if not driver:
         return "Graph context unavailable (Neo4j not configured)."
 
@@ -54,12 +62,12 @@ def get_graph_context(address: str, max_hops: int = 3) -> str:
     return "Graph: no path to known blacklisted or mixer nodes within max hops."
 
 
-def get_rag_context(query: str, top_k: int = 5) -> list[str]:
+def get_rag_context(query: str, app: FastAPI | None = None, top_k: int = 5) -> list[str]:
     """
     (Sprint 2) Query Neo4j vector index for threat report chunks similar to query.
     Returns list of text snippets for the LLM.
     """
-    driver = get_driver()
+    driver = get_driver(app)
     if not driver:
         return []
 
