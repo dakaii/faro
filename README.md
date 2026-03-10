@@ -15,7 +15,23 @@ AI-driven wallet risk investigator: combines **live on-chain data** (Etherscan),
 
 ## Quick start
 
-### 1. Backend (Python)
+### Option A: Docker (backend + Neo4j)
+
+From the repo root:
+
+```bash
+cp backend/.env.example backend/.env   # set ETHERSCAN_API_KEY (and optional NEO4J_PASSWORD)
+docker compose up -d
+```
+
+- **Backend:** http://localhost:8000  
+- **Neo4j Browser:** http://localhost:7474 (default user `neo4j`, password from `NEO4J_PASSWORD` or `neo4j`)
+
+Run the frontend locally (Option B) so the Vue app can proxy to the backend.
+
+### Option B: Local dev
+
+**1. Backend (Python)**
 
 ```bash
 cd backend
@@ -28,7 +44,7 @@ uvicorn app.main:app --reload --port 8000
 
 Get an API key at [etherscan.io](https://etherscan.io/apis) (free tier is enough).
 
-### 2. Frontend (Bun)
+**2. Frontend (Bun)**
 
 ```bash
 cd frontend
@@ -38,12 +54,12 @@ bun run dev
 
 Open [http://localhost:5173](http://localhost:5173). The app proxies `/api` and `/health` to the backend.
 
-### 3. Neo4j (optional, for GraphRAG)
+**3. Neo4j (optional, for GraphRAG)**
 
-- **Local:** `docker run -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/yourpassword -d neo4j:community`
-- Set `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` in `backend/.env`.
+- With Docker: use `docker compose up -d`; the backend uses `bolt://neo4j:7687`.
+- Standalone: `docker run -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/yourpassword -d neo4j:5-community`, then set `NEO4J_URI=bolt://localhost:7687` and `NEO4J_PASSWORD` in `backend/.env`.
 
-Without Neo4j, the backend still runs; graph context will be “unavailable” and risk is based on Etherscan-only heuristics.
+Without Neo4j, the backend still runs; graph context is unavailable and risk is based on Etherscan-only heuristics.
 
 ## Project layout
 
@@ -51,7 +67,9 @@ Without Neo4j, the backend still runs; graph context will be “unavailable” a
 faro/
 ├── SPEC.md           # Technical spec and roadmap
 ├── README.md
+├── docker-compose.yml   # Backend + Neo4j
 ├── backend/
+│   ├── Dockerfile
 │   ├── app/
 │   │   ├── api/          # FastAPI routes (e.g. POST /api/investigate)
 │   │   ├── core/         # Config
