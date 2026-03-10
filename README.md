@@ -2,7 +2,8 @@
 
 AI-driven wallet risk investigator: combines **live on-chain data** (Etherscan), **graph relationships** (Neo4j), and **threat intel** (RAG over PDFs) to produce explainable risk reports.
 
-- **Spec:** [SPEC.md](./SPEC.md) – architecture, pipeline, and roadmap.
+- **Spec:** [SPEC.md](./SPEC.md) – architecture, pipeline, and roadmap.  
+- **Status:** [STATUS.md](./STATUS.md) – what’s implemented and what’s left to build.
 
 ## Stack
 
@@ -15,7 +16,32 @@ AI-driven wallet risk investigator: combines **live on-chain data** (Etherscan),
 
 ## Quick start
 
-From the repo root you can use **Make** for common commands: `make env-setup` (copy `.env`), `make up` (Docker), `make dev-backend`, `make dev-frontend`, `make down`, `make logs`.
+From the repo root you can use **Make** for common commands: `make env-setup` (copy `.env`), `make up` (Docker), `make dev-backend`, `make dev-frontend`, `make down`, `make logs`, **`make test`** (run backend tests).
+
+### Running the tests
+
+Most tests **mock** Etherscan and Neo4j, so they run with no services. Two tests are **Neo4j integration** tests: they run **real Cypher** against a running Neo4j so we can verify queries and graph behaviour. Those two are **skipped** when Neo4j is not configured or not reachable.
+
+From the repo root:
+
+```bash
+make test
+```
+
+- **Without Neo4j:** 20 passed, 2 skipped (fast, no Docker).
+- **With Neo4j:** start it first (`make up`), set `NEO4J_PASSWORD` in `backend/.env`, then `make test` again → 22 passed (includes real tag + graph-context Cypher tests).
+
+To run only the Neo4j integration tests when Neo4j is up:
+
+```bash
+cd backend && PYTHONPATH=. python -m pytest tests -m neo4j -v
+```
+
+Use **Docker Compose** when you want to run the **real app** (backend + Neo4j) or the **full test suite including Neo4j query tests**.
+
+**Why are 2 tests skipped?** Those two are **Neo4j integration tests** (`tests/test_neo4j_integration.py`). They need a real Neo4j (e.g. `make up`) and `NEO4J_PASSWORD` in `backend/.env`. The `neo4j_driver` fixture tries to connect; if Neo4j isn’t there, it calls `pytest.skip(...)` so the test is skipped instead of failing. So: **20 tests** = no services; **22 tests** = with Neo4j running.
+
+**Coverage:** Run `make test-coverage` for a line-coverage report. Current suite gives ~48% over `app/`; gaps are mainly code paths that need live APIs (Etherscan, Neo4j, OpenAI) or the ingest/LLM flows. Adding more unit tests around edge cases and mocked API tests would raise it.
 
 ### Option A: Docker (backend + Neo4j)
 
@@ -62,6 +88,16 @@ Open [http://localhost:5173](http://localhost:5173). The app proxies `/api` and 
 
 Without Neo4j, the backend still runs; graph context is unavailable and risk is based on Etherscan-only heuristics.
 
+**4. LLM & embeddings (optional – OpenAI-compatible)**
+
+Risk synthesis and RAG embeddings use any **OpenAI-compatible** API. Set in `backend/.env`:
+
+- **OpenAI:** `OPENAI_API_KEY=sk-...` (default; no base URL).
+- **OpenRouter:** `OPENAI_API_KEY=<your-openrouter-key>` and `OPENAI_BASE_URL=https://openrouter.ai/api/v1`; set `OPENAI_LLM_MODEL` / `OPENAI_EMBEDDING_MODEL` to the model IDs you want.
+- **Self-hosted (e.g. Ollama, vLLM):** `OPENAI_BASE_URL=http://localhost:11434/v1` (Ollama) and optionally `OPENAI_API_KEY` if the server requires it; set models to the names your server exposes.
+
+If neither key nor base URL is set, the app uses a heuristic (no LLM, no RAG embeddings).
+
 ## Project layout
 
 ```
@@ -93,10 +129,12 @@ faro/
 
 ## Roadmap (from SPEC)
 
-- **Sprint 1:** Neo4j + FastAPI + Etherscan client ✅ (scaffolded)
-- **Sprint 2:** Vector index in Neo4j; ingest security PDFs; RAG retrieval + LLM synthesis
-- **Sprint 3:** Vue dashboard ✅ (scaffolded); polish UI and chain selector
-- **Sprint 4:** Cypher graph traversal (multi-hop to blacklisted/mixer); wire into response
+- **Sprint 1:** Neo4j + FastAPI + Etherscan + **structured ingestion** (Wallet + SENT_FUNDS into Neo4j) ✅
+- **Sprint 2:** **RAG** (vector index, PDF ingest via POST `/api/ingest-doc`, `get_rag_context`) + **LLM synthesis** (OpenAI when `OPENAI_API_KEY` set) ✅
+- **Sprint 3:** Vue dashboard + **chain selector** (Ethereum, Base, Arbitrum) ✅
+- **Sprint 4:** Cypher graph traversal; graph populated by ingestion ✅
+
+See [STATUS.md](./STATUS.md) for details.
 
 ## License
 
