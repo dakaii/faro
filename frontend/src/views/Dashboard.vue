@@ -2,8 +2,22 @@
 import { ref } from "vue";
 import { useForensicStore } from "../stores/forensic";
 
+const CHAINS = [
+  { chainId: 1, name: "Ethereum" },
+  { chainId: 8453, name: "Base" },
+  { chainId: 42161, name: "Arbitrum One" },
+] as const;
+
 const store = useForensicStore();
 const addressInput = ref("");
+const selectedChainId = ref(1);
+
+// Doc ingest (RAG)
+const uploadFile = ref<HTMLInputElement | null>(null);
+const uploadSource = ref("");
+const uploadLoading = ref(false);
+const uploadError = ref<string | null>(null);
+const uploadResult = ref<{ ingested: number; source: string } | null>(null);
 
 function riskBand(score: number): "low" | "medium" | "high" {
   if (score < 40) return "low";
@@ -13,7 +27,38 @@ function riskBand(score: number): "low" | "medium" | "high" {
 
 function submit() {
   if (!addressInput.value.trim()) return;
-  store.startInvestigation(addressInput.value);
+  store.startInvestigation(addressInput.value, selectedChainId.value);
+}
+
+async function submitUpload() {
+  const file = uploadFile.value?.files?.[0];
+  if (!file || !file.name.toLowerCase().endsWith(".pdf")) {
+    uploadError.value = "Please select a PDF file.";
+    return;
+  }
+  uploadError.value = null;
+  uploadResult.value = null;
+  uploadLoading.value = true;
+  try {
+    const form = new FormData();
+    form.append("file", file);
+    if (uploadSource.value.trim()) form.append("source", uploadSource.value.trim());
+    const response = await fetch("/api/ingest-doc", {
+      method: "POST",
+      body: form,
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.detail ?? `Upload failed: ${response.status}`);
+    }
+    uploadResult.value = (await response.json()) as { ingested: number; source: string };
+    if (uploadFile.value) uploadFile.value.value = "";
+    uploadSource.value = "";
+  } catch (e) {
+    uploadError.value = e instanceof Error ? e.message : "Upload failed";
+  } finally {
+    uploadLoading.value = false;
+  }
 }
 </script>
 
@@ -24,9 +69,20 @@ function submit() {
         Investigate wallet
       </h2>
       <p class="mt-1 text-sm text-zinc-400">
-        Enter an address to fetch on-chain data and get a risk report (Etherscan + GraphRAG placeholder).
+        Enter an address to fetch on-chain data and get a risk report (Etherscan + Graph).
       </p>
-      <div class="mt-4 flex flex-wrap gap-3">
+      <div class="mt-4 flex flex-wrap items-center gap-3">
+        <label class="flex items-center gap-2 text-sm text-zinc-400">
+          <span>Chain</span>
+          <select
+            v-model.number="selectedChainId"
+            class="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 font-mono text-sm text-zinc-100 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+          >
+            <option v-for="c in CHAINS" :key="c.chainId" :value="c.chainId">
+              {{ c.name }}
+            </option>
+          </select>
+        </label>
         <input
           v-model="addressInput"
           type="text"
@@ -45,6 +101,49 @@ function submit() {
       </div>
       <p v-if="store.error" class="mt-3 text-sm text-red-400">
         {{ store.error }}
+      </p>
+    </section>
+
+    <section class="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6">
+      <h2 class="font-mono text-sm font-semibold uppercase tracking-wider text-zinc-500">
+        Upload threat report
+      </h2>
+      <p class="mt-1 text-sm text-zinc-400">
+        Add a PDF (e.g. REKT, Chainalysis report). It will be chunked, embedded, and used for RAG in investigations.
+      </p>
+      <div class="mt-4 flex flex-wrap items-end gap-3">
+        <label class="flex flex-col gap-1 text-sm text-zinc-400">
+          <span>PDF file</span>
+          <input
+            ref="uploadFile"
+            type="file"
+            accept=".pdf"
+            class="font-mono text-sm text-zinc-300 file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white file:hover:bg-cyan-500"
+          />
+        </label>
+        <label class="flex flex-col gap-1 text-sm text-zinc-400">
+          <span>Source (optional)</span>
+          <input
+            v-model="uploadSource"
+            type="text"
+            placeholder="e.g. REKT Q1 2024"
+            class="font-mono w-48 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+          />
+        </label>
+        <button
+          type="button"
+          :disabled="uploadLoading"
+          class="rounded-lg bg-zinc-700 px-5 py-2.5 font-medium text-white transition hover:bg-zinc-600 disabled:opacity-50"
+          @click="submitUpload"
+        >
+          {{ uploadLoading ? "Uploading…" : "Upload" }}
+        </button>
+      </div>
+      <p v-if="uploadError" class="mt-3 text-sm text-red-400">
+        {{ uploadError }}
+      </p>
+      <p v-else-if="uploadResult" class="mt-3 text-sm text-zinc-400">
+        Ingested {{ uploadResult.ingested }} chunk(s) from “{{ uploadResult.source }}”.
       </p>
     </section>
 
