@@ -1,13 +1,20 @@
 """
 Neo4j client for GraphRAG: graph traversal (multi-hop from wallet to blacklisted/mixer)
-and vector index for threat reports. Placeholder until Sprint 2/4.
+and vector index for threat reports (ReportChunk nodes).
 """
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any
 
 from app.core.config import settings
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
+
+# Label and property for RAG chunks (SPEC §8)
+RAG_CHUNK_LABEL = "ReportChunk"
+RAG_EMBEDDING_PROP = "embedding"
+RAG_TEXT_PROP = "text"
 
 
 def get_driver(app: FastAPI | None = None):
@@ -62,14 +69,58 @@ def get_graph_context(address: str, app: FastAPI | None = None, max_hops: int = 
     return "Graph: no path to known blacklisted or mixer nodes within max hops."
 
 
+def ensure_rag_vector_index(driver: Any) -> bool:
+    """
+    Create the RAG vector index if it does not exist (Neo4j 5.13+).
+    Idempotent; safe to call at startup or before first ingest.
+    """
+    try:
+        with driver.session() as session:
+            session.run(
+                f"""
+                CREATE VECTOR INDEX {settings.rag_vector_index_name} IF NOT EXISTS
+                FOR (n:{RAG_CHUNK_LABEL}) ON (n.{RAG_EMBEDDING_PROP})
+                OPTIONS {{
+                    indexConfig: {{
+                        `vector.dimensions`: $dimensions,
+                        `vector.similarity_function`: 'cosine'
+                    }}
+                }}
+                """,
+                dimensions=settings.openai_embedding_dimensions,
+            ).consume()
+        return True
+    except Exception:
+        return False
+
+
 def get_rag_context(query: str, app: FastAPI | None = None, top_k: int = 5) -> list[str]:
     """
-    (Sprint 2) Query Neo4j vector index for threat report chunks similar to query.
-    Returns list of text snippets for the LLM.
+    Query Neo4j vector index for threat report chunks similar to query.
+    Returns list of text snippets for the LLM. Uses OpenAI to embed query when configured.
     """
+    from app.services.embeddings import embed_text
+
     driver = get_driver(app)
     if not driver:
         return []
 
-    # Placeholder – vector index and Cypher will be added in Sprint 2
-    return []
+    query_embedding = embed_text(query)
+    if not query_embedding:
+        return []
+
+    try:
+        with driver.session() as session:
+            result = session.run(
+                f"""
+                CALL db.index.vector.queryNodes($index_name, $top_k, $query_vector)
+                YIELD node, score
+                RETURN node.{RAG_TEXT_PROP} AS text
+                """,
+                index_name=settings.rag_vector_index_name,
+                top_k=top_k,
+                query_vector=query_embedding,
+            )
+            return [record["text"] for record in result if record.get("text")]
+    except Exception:
+        return []

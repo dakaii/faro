@@ -66,16 +66,37 @@ class EtherscanFetcher:
             return f"Error fetching wallet: {msg}"
 
         txs = data.get("result") or []
-        if not txs:
-            return f"Forensic report for wallet: {address}\nNo transactions found (new or empty wallet)."
+        return wallet_story_from_txs(address, txs)
 
-        lines = [f"Forensic report for wallet: {address}\n"]
-        for tx in txs:
-            value_eth = _wei_to_eth(tx.get("value", "0"))
-            to_addr = (tx.get("to") or "contract creation")[:14]
-            date = format_timestamp(tx.get("timeStamp", "0"))
-            tx_hash = (tx.get("hash") or "")[:10]
-            lines.append(
-                f"- On {date}, sent {value_eth:.4f} ETH to {to_addr}... (Hash: {tx_hash}...)\n"
-            )
-        return "".join(lines)
+    def get_tx_list_ok(
+        self,
+        address: str,
+        chain_id: int = 1,
+        max_txs: int = 10,
+    ) -> tuple[str, list[dict[str, Any]]]:
+        """
+        Fetch tx list and return (wallet_story, txs). Use when you need both
+        the story and raw txs (e.g. for graph ingestion) to avoid double fetch.
+        """
+        data = self.get_tx_list(address, chain_id=chain_id, offset=max_txs)
+        if data.get("status") != "1":
+            msg = data.get("message", "Unknown error")
+            return f"Error fetching wallet: {msg}", []
+        txs = data.get("result") or []
+        return wallet_story_from_txs(address, txs), txs
+
+
+def wallet_story_from_txs(address: str, txs: list[dict[str, Any]]) -> str:
+    """Build forensic story string from a list of tx dicts (from Etherscan)."""
+    if not txs:
+        return f"Forensic report for wallet: {address}\nNo transactions found (new or empty wallet)."
+    lines = [f"Forensic report for wallet: {address}\n"]
+    for tx in txs:
+        value_eth = _wei_to_eth(tx.get("value", "0"))
+        to_addr = (tx.get("to") or "contract creation")[:14]
+        date = format_timestamp(tx.get("timeStamp", "0"))
+        tx_hash = (tx.get("hash") or "")[:10]
+        lines.append(
+            f"- On {date}, sent {value_eth:.4f} ETH to {to_addr}... (Hash: {tx_hash}...)\n"
+        )
+    return "".join(lines)

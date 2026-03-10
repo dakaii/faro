@@ -11,3 +11,14 @@ class InvestigateResponse(BaseModel):
     risk_score: int = Field(..., ge=0, le=100)
     summary: str
     evidence: list[str] = Field(default_factory=list)
+
+
+class TagAddressRequest(BaseModel):
+    address: str = Field(..., description="Ethereum-style wallet address (0x...)")
+    tag: str = Field(..., description="Label to apply: Blacklisted or Mixer")
+
+
+class TagAddressResponse(BaseModel):
+    tagged: bool
+    address: str
+    tag: str
