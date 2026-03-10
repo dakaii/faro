@@ -1,7 +1,7 @@
 # Faro – common commands
 # Usage: make [target]
 
-.PHONY: up down logs dev-backend dev-frontend env-setup
+.PHONY: up down logs dev-backend dev-frontend env-setup test test-coverage
 
 # Docker: start backend + Neo4j
 up:
@@ -22,6 +22,14 @@ dev-backend:
 # Local dev: run frontend (Bun)
 dev-frontend:
 	cd frontend && bun run dev
+
+# Run backend tests
+test:
+	cd backend && PYTHONPATH=. python -m pytest tests -v
+
+# Run tests with coverage report
+test-coverage:
+	cd backend && PYTHONPATH=. python -m pytest tests -v --cov=app --cov-report=term-missing
 
 # Copy backend .env.example to .env if missing
 env-setup:

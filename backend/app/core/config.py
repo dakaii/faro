@@ -33,5 +33,16 @@ class Settings(BaseSettings):
     neo4j_user: str = "neo4j"
     neo4j_password: str = ""
 
+    # LLM & embeddings – OpenAI-compatible (OpenAI, OpenRouter, self-hosted). Optional (heuristic when unset).
+    # When base_url is set, use that endpoint for both; api_key can be OpenAI key, OpenRouter key, or any key the server accepts.
+    openai_api_key: str = ""
+    openai_base_url: str = ""  # e.g. https://openrouter.ai/api/v1 or http://localhost:11434/v1 (Ollama)
+    openai_embedding_model: str = "text-embedding-3-small"
+    openai_embedding_dimensions: int = 1536  # some providers ignore this (fixed-dim models)
+    openai_llm_model: str = "gpt-4o-mini"
+
+    # RAG – Neo4j vector index for ReportChunk nodes
+    rag_vector_index_name: str = "report_chunks_vector"
+
 
 settings = Settings()

@@ -33,8 +33,8 @@ services:
       - "7474:7474"
       - "7687:7687"
     environment:
-      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-neo4j}
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-neo4j}
+      # Auth only via NEO4J_AUTH (user/password); avoid NEO4J_PASSWORD env – Neo4j 5 strict validation rejects it
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-neo4j123}
     volumes:
       - neo4j_data:/data
     healthcheck:
