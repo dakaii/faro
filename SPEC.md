@@ -73,6 +73,8 @@
 | **3**  | Vue 3 dashboard (Bun, Biome, Tailwind); Pinia store; call FastAPI investigate endpoint |
 | **4**  | Graph traversal (Cypher): mixers, multi-hop to blacklisted nodes; wire into investigation response |
 
+**Sprint 1 (current):** Docker Compose (backend + Neo4j), backend healthchecks, Neo4j driver initialized at app startup and shared via `app.state`; optional CORS override via env.
+
 ---
 
 ## 7. API Contract (Planned)
@@ -83,7 +85,7 @@
 - **Response:**  
   `{ "address", "risk_score", "summary", "evidence": [...], "graph_summary?" }`
 
-(Exact fields can be refined in Sprint 1–2.)
+(Exact fields can be refined in Sprint 1–2.) Implemented: `address`, `risk_score`, `summary`, `evidence`; graph context is included in evidence when available.
 
 ---
 
@@ -93,4 +95,12 @@
 - **Relationships:** `(Wallet)-[:SENT_FUNDS { amount, timestamp?, tx_hash? }]->(Wallet)` (and similar).
 - **Vector index:** One index over a node type (e.g. `ReportChunk`) with an embedding property; used for semantic search of threat docs.
 
-This document is the single source of truth for scope and architecture; implementation details will live in code and README.
+---
+
+## 9. Operations & Deployment
+
+- **Run:** From repo root, `make env-setup` then `make up` (Docker) or `make dev-backend` / `make dev-frontend` (local). See README for full steps.
+- **Env:** `backend/.env` — `ETHERSCAN_API_KEY` required; `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` optional (backend runs without Neo4j; graph context then unavailable). Optional `CORS_ORIGINS` (comma-separated) for production frontend origins.
+- **Stack in Docker:** Backend (FastAPI, non-root user, healthcheck on `/health`), Neo4j 5 with healthcheck; backend depends on Neo4j healthy when using Compose.
+
+This document is the single source of truth for scope and architecture; implementation details live in code and README.

@@ -66,10 +66,12 @@ Without Neo4j, the backend still runs; graph context is unavailable and risk is 
 
 ```
 faro/
-├── SPEC.md           # Technical spec and roadmap
+├── SPEC.md             # Technical spec and roadmap
 ├── README.md
-├── docker-compose.yml   # Backend + Neo4j
+├── Makefile            # make up, dev-backend, dev-frontend, env-setup, down, logs
+├── docker-compose.yml  # Backend + Neo4j
 ├── backend/
+│   ├── .dockerignore
 │   ├── Dockerfile
 │   ├── app/
 │   │   ├── api/          # FastAPI routes (e.g. POST /api/investigate)
