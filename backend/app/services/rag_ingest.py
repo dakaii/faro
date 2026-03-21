@@ -57,50 +57,95 @@ def ingest_document_to_rag(
     overlap: int = 50,
 ) -> int:
     """
-    Chunk text, embed each chunk, write ReportChunk nodes to Neo4j.
-    Ensures vector index exists. Returns number of chunks written.
+    Complete document ingestion pipeline for RAG system.
+    
+    Process:
+    1. Validate prerequisites (database connection, embedding API)
+    2. Ensure vector index exists in Neo4j
+    3. Chunk document text with overlap
+    4. Generate embeddings for each chunk
+    5. Write chunks with embeddings to Neo4j as ReportChunk nodes
+    
+    Args:
+        app: FastAPI application instance (for database access)
+        text: Raw document text to ingest
+        source: Source identifier for the document (optional)
+        chunk_size: Maximum characters per chunk (default: 500)
+        overlap: Character overlap between chunks (default: 50)
+        
+    Returns:
+        Number of chunks successfully written to database
     """
-    driver = get_driver(app) if app else get_driver()
-    if not driver:
+    # 1. Validate prerequisites
+    if not _has_database_access(app):
         return 0
-    if not settings.openai_api_key and not settings.openai_base_url:
+        
+    if not _has_embedding_api_access():
         return 0
 
+    driver = get_driver(app) if app else get_driver()
+    
+    # 2. Ensure vector index exists
     if not ensure_rag_vector_index(driver):
         return 0
 
+    # 3. Chunk the document text
     chunks = chunk_text(text, chunk_size=chunk_size, overlap=overlap)
     if not chunks:
         return 0
 
-    embeddings = [embed_text(c) for c in chunks]
-    rows = [
-        {"text": c, "embedding": e, "source": source}
-        for c, e in zip(chunks, embeddings)
-        if e is not None
-    ]
-    if not rows:
+    # 4. Generate embeddings for chunks
+    embedded_chunks = _create_embedded_chunks(chunks, source)
+    if not embedded_chunks:
         return 0
 
-    def _write(tx: Any) -> int:
-        count = 0
-        for row in rows:
-            tx.run(
-                f"""
-                CREATE (n:{RAG_CHUNK_LABEL})
-                SET n.{RAG_TEXT_PROP} = $text,
-                    n.{RAG_EMBEDDING_PROP} = $embedding,
-                    n.source = $source
-                """,
-                text=row["text"],
-                embedding=row["embedding"],
-                source=row["source"],
-            ).consume()
-            count += 1
-        return count
-
+    # 5. Write to Neo4j database
     try:
         with driver.session() as session:
-            return session.execute_write(_write)
+            return session.execute_write(_write_chunks_to_db, embedded_chunks)
     except Exception:
         return 0
+
+
+def _has_database_access(app: Any) -> bool:
+    """Check if Neo4j database connection is available."""
+    driver = get_driver(app) if app else get_driver()
+    return driver is not None
+
+
+def _has_embedding_api_access() -> bool:
+    """Check if embedding API (OpenAI or compatible) is configured."""
+    return bool(settings.openai_api_key or settings.openai_base_url)
+
+
+def _create_embedded_chunks(chunks: list[str], source: str) -> list[dict]:
+    """Generate embeddings for text chunks and prepare for database storage."""
+    embeddings = [embed_text(chunk) for chunk in chunks]
+    
+    # Filter out chunks where embedding generation failed
+    return [
+        {"text": chunk, "embedding": embedding, "source": source}
+        for chunk, embedding in zip(chunks, embeddings)
+        if embedding is not None
+    ]
+
+
+def _write_chunks_to_db(tx: Any, embedded_chunks: list[dict]) -> int:
+    """Write embedded chunks to Neo4j as ReportChunk nodes."""
+    count = 0
+    
+    for chunk_data in embedded_chunks:
+        tx.run(
+            f"""
+            CREATE (n:{RAG_CHUNK_LABEL})
+            SET n.{RAG_TEXT_PROP} = $text,
+                n.{RAG_EMBEDDING_PROP} = $embedding,
+                n.source = $source
+            """,
+            text=chunk_data["text"],
+            embedding=chunk_data["embedding"],
+            source=chunk_data["source"],
+        ).consume()
+        count += 1
+        
+    return count
