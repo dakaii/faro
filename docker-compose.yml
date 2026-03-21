@@ -1,6 +1,6 @@
 # Faro stack: backend API + Neo4j (optional for GraphRAG)
 # Usage: docker compose up -d
-# Backend: http://localhost:8000  |  Neo4j browser: http://localhost:7474
+# Backend: http://localhost:8080  |  Neo4j browser: http://localhost:7475
 
 services:
   backend:
@@ -8,7 +8,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "8080:8000"
     environment:
       - ETHERSCAN_API_KEY=${ETHERSCAN_API_KEY:-}
       - NEO4J_URI=bolt://neo4j:7687
@@ -30,15 +30,15 @@ services:
   neo4j:
     image: neo4j:5-community
     ports:
-      - "7474:7474"
-      - "7687:7687"
+      - "7475:7474"
+      - "7688:7687"
     environment:
       # Auth only via NEO4J_AUTH (user/password); avoid NEO4J_PASSWORD env – Neo4j 5 strict validation rejects it
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-neo4j123}
     volumes:
       - neo4j_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:7474 > /dev/null || exit 1"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:7474"]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -1,5 +1,8 @@
-from fastapi import APIRouter, Request, HTTPException
+from typing import Annotated
+from fastapi import APIRouter, Request, HTTPException, Depends
 
+from app.core.auth import User, RequireInvestigate
+from app.middleware.rate_limit import strict_rate_limit
 from app.models.schemas import InvestigateResponse, WalletRequest
 from app.services.etherscan import EtherscanFetcher
 from app.services.graph_ingest import ingest_wallet_transactions
@@ -36,7 +39,12 @@ def _heuristic_risk(wallet_story: str, graph_summary: str) -> tuple[int, str, li
 
 
 @router.post("/investigate", response_model=InvestigateResponse)
-async def investigate_wallet(req: WalletRequest, request: Request) -> InvestigateResponse:
+async def investigate_wallet(
+    req: WalletRequest, 
+    request: Request,
+    current_user: Annotated[User, Depends(RequireInvestigate)],
+    rate_limit: bool = Depends(strict_rate_limit)
+) -> InvestigateResponse:
     """
     Investigate a wallet: fetch on-chain data, ingest to graph, (optional) graph + RAG context,
     then synthesize risk via LLM when configured, else heuristic.

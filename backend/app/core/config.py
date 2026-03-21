@@ -44,5 +44,22 @@ class Settings(BaseSettings):
     # RAG – Neo4j vector index for ReportChunk nodes
     rag_vector_index_name: str = "report_chunks_vector"
 
+    # Authentication & Security - MUST be set via environment variables in production
+    secret_key: str = "dev-secret-key-change-in-production-via-SECRET_KEY-env-var"
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30
+    # API key for service-to-service authentication (optional)
+    api_key: str = ""
+    # Enable/disable authentication (for development)
+    auth_enabled: bool = True
+
+    def validate_production_settings(self) -> None:
+        """Validate that critical security settings are configured for production."""
+        if not self.secret_key or self.secret_key == "dev-secret-key-change-in-production-via-SECRET_KEY-env-var":
+            raise ValueError(
+                "SECRET_KEY must be set via environment variable in production. "
+                "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+            )
+
 
 settings = Settings()

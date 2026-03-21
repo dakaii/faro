@@ -1,8 +1,11 @@
 """
 Document ingestion for RAG: upload PDFs to be chunked, embedded, and stored in Neo4j.
 """
-from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form
+from typing import Annotated
+from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form, Depends
 
+from app.core.auth import User, RequireIngest
+from app.middleware.rate_limit import strict_rate_limit
 from app.services.rag_ingest import extract_text_from_pdf, ingest_document_to_rag
 
 router = APIRouter()
@@ -13,6 +16,8 @@ async def ingest_doc(
     request: Request,
     file: UploadFile = File(...),
     source: str = Form(""),
+    current_user: Annotated[User, Depends(RequireIngest)] = None,
+    rate_limit: bool = Depends(strict_rate_limit)
 ) -> dict:
     """
     Upload a PDF; extract text, chunk, embed, and write to Neo4j ReportChunk nodes.

@@ -2,9 +2,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
 
-from app.api import investigate, ingest, tags
+from app.api import auth, investigate, ingest, tags
 from app.core.config import settings
+from app.middleware.rate_limit import limiter, rate_limit_exceeded_handler
 
 
 @asynccontextmanager
@@ -40,6 +42,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Add rate limiting state
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -48,6 +54,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router, prefix="/auth", tags=["authentication"])
 app.include_router(investigate.router, prefix="/api", tags=["investigate"])
 app.include_router(ingest.router, prefix="/api", tags=["ingest"])
 app.include_router(tags.router, prefix="/api", tags=["tags"])
